@@ -1,6 +1,4 @@
 streamlit
 rembg[cpu]
 pillow
-streamlit-authenticator
-gunicorn
 psycopg2-binary
