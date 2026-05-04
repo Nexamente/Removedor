@@ -4,6 +4,32 @@ from PIL import Image
 import io
 import zipfile
 import os
+import psycopg2 # Biblioteca para conectar ao banco de dados
+
+# Função para verificar se o usuário existe no banco de dados do Railway
+def verificar_login(usuario, senha):
+    conn = psycopg2.connect(st.secrets["DATABASE_URL"]) # Puxa a conexão automática do Railway
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM usuarios WHERE email=%s AND senha=%s", (usuario, senha))
+    resultado = cur.fetchone()
+    cur.close()
+    conn.close()
+    return resultado
+
+# Interface de Login
+st.title("Nexamente - Acesso Restrito")
+user_input = st.text_input("E-mail (usuário Hotmart)")
+pass_input = st.text_input("Senha", type="password")
+
+if st.button("Entrar"):
+    if verificar_login(user_input, pass_input):
+        st.session_state["logado"] = True
+        st.success("Login realizado com sucesso!")
+    else:
+        st.error("Usuário não encontrado ou compra ainda não processada.")
+
+if not st.session_state.get("logado"):
+    st.stop() # Trava o resto do app se não estiver logado
 
 st.set_page_config(page_title="Presence - Processamento em Lote", layout="wide")
 
