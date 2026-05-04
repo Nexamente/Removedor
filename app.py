@@ -5,26 +5,29 @@ from rembg import remove
 from PIL import Image
 import io
 
-# Configurações Iniciais
+# 1. Configurações Iniciais - DEVE ser a primeira coisa
 st.set_page_config(page_title="Nexamente - IA", layout="wide")
 
-# Função de conexão com o banco
+# 2. Inicialização do Session State (A trava de segurança)
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
+if "nome_usuario" not in st.session_state:
+    st.session_state["nome_usuario"] = ""
+
 def get_db_connection():
     return psycopg2.connect(os.environ.get('DATABASE_URL'))
 
-# --- CONTROLE DE SESSÃO (ESSENCIAL) ---
-if "logado" not in st.session_state:
-    st.session_state["logado"] = False
-if "nome" not in st.session_state:
-    st.session_state["nome"] = ""
+# --- LÓGICA DE NAVEGAÇÃO ---
 
-# Tela de Login
+# SE NÃO ESTIVER LOGADO, MOSTRA APENAS O LOGIN
 if not st.session_state["logado"]:
-    st.title("Nexamente - Acesso")
-    with st.form("login_form"):
-        user = st.text_input("E-mail")
+    st.title("Nexamente - Acesso Restrito")
+    
+    with st.container():
+        user = st.text_input("E-mail registrado")
         pw = st.text_input("Senha", type="password")
-        if st.form_submit_button("Entrar"):
+        
+        if st.button("Acessar Painel"):
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()
@@ -32,18 +35,29 @@ if not st.session_state["logado"]:
                 resultado = cur.fetchone()
                 cur.close()
                 conn.close()
+                
                 if resultado:
                     st.session_state["logado"] = True
-                    st.session_state["nome"] = resultado[0]
-                    st.rerun() # Força o recarregamento já logado
+                    st.session_state["nome_usuario"] = resultado[0]
+                    st.rerun() # RECARREGA JÁ COMO LOGADO
                 else:
-                    st.error("Dados incorretos.")
+                    st.error("E-mail ou senha incorretos.")
             except Exception as e:
-                st.error("Erro ao conectar ao banco de dados.")
-    st.stop()
+                st.error("Erro técnico ao conectar. Verifique a DATABASE_URL.")
+    
+    st.stop() # PARA O SCRIPT AQUI SE NÃO LOGAR
 
-# --- ÁREA DA FERRAMENTA (SÓ CHEGA AQUI SE LOGADO) ---
-st.title(f"Painel Nexamente - Olá, {st.session_state['nome']}!")
+# --- SE CHEGOU AQUI, É PORQUE ESTÁ LOGADO ---
+# Tudo daqui para baixo é a ferramenta de remoção
+
+st.sidebar.success(f"Logado como: {st.session_state['nome_usuario']}")
+if st.sidebar.button("Encerrar Sessão"):
+    st.session_state["logado"] = False
+    st.rerun()
+
+st.title("Nexamente - Processamento de Imagens")
+
+# O restante do seu código de upload (accept_multiple_files=True) e remoção vai aqui...
 
 # 'accept_multiple_files=True' resolve o problema de selecionar várias
 arquivos = st.file_uploader("Selecione as imagens dos produtos", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
