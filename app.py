@@ -1,75 +1,87 @@
 import streamlit as st
+import psycopg2
+import os
 from rembg import remove
 from PIL import Image
 import io
-import zipfile
-import os
-import psycopg2 # Biblioteca para conectar ao banco de dados
 
-# Função para verificar se o usuário existe no banco de dados do Railway
+# 1. Configurações Iniciais do Nexamente
+st.set_page_config(page_title="Nexamente - IA", layout="wide")
+
+# Função para conectar ao banco de dados usando a variável que você configurou
+def get_db_connection():
+    return psycopg2.connect(os.environ.get('DATABASE_URL'))
+
+# Função para verificar se o cliente existe no banco
 def verificar_login(usuario, senha):
-    conn = psycopg2.connect(st.secrets["DATABASE_URL"]) # Puxa a conexão automática do Railway
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM usuarios WHERE email=%s AND senha=%s", (usuario, senha))
-    resultado = cur.fetchone()
-    cur.close()
-    conn.close()
-    return resultado
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM usuarios WHERE email=%s AND senha=%s", (usuario, senha))
+        resultado = cur.fetchone()
+        cur.close()
+        conn.close()
+        return resultado
+    except Exception as e:
+        st.error(f"Erro de conexão com o banco: {e}")
+        return None
 
-# Interface de Login
-st.title("Nexamente - Acesso Restrito")
-user_input = st.text_input("E-mail (usuário Hotmart)")
-pass_input = st.text_input("Senha", type="password")
+# --- SISTEMA DE LOGIN ---
+if "logado" not in st.session_state:
+    st.session_state["logado"] = False
 
-if st.button("Entrar"):
-    if verificar_login(user_input, pass_input):
-        st.session_state["logado"] = True
-        st.success("Login realizado com sucesso!")
-    else:
-        st.error("Usuário não encontrado ou compra ainda não processada.")
+if not st.session_state["logado"]:
+    st.title("Nexamente - Login")
+    with st.form("login_form"):
+        user = st.text_input("E-mail de compra")
+        pw = st.text_input("Senha", type="password")
+        if st.form_submit_button("Acessar Sistema"):
+            dados = verificar_login(user, pw)
+            if dados:
+                st.session_state["logado"] = True
+                st.session_state["nome"] = dados[0]
+                st.rerun()
+            else:
+                st.error("Usuário não encontrado. Verifique se o pagamento foi aprovado.")
+    st.stop()
 
-if not st.session_state.get("logado"):
-    st.stop() # Trava o resto do app se não estiver logado
+# --- ÁREA DO CLIENTE (Só aparece após login) ---
+st.sidebar.write(f"Conectado como: **{st.session_state['nome']}**")
+if st.sidebar.button("Sair"):
+    st.session_state["logado"] = False
+    st.rerun()
 
-st.set_page_config(page_title="Presence - Processamento em Lote", layout="wide")
+st.title("Nexamente - Removedor de Fundo Profissional")
+st.write("Suba sua foto e deixe nossa IA trabalhar para você.")
 
-st.title("📦 Processador de Produtos em Lote")
-st.write("Suba várias fotos e baixe todas limpas em um único arquivo ZIP.")
+arquivo_upload = st.file_uploader("Escolha uma imagem...", type=["jpg", "jpeg", "png"])
 
-# Upload de múltiplos arquivos
-uploaded_files = st.file_uploader("Arraste as fotos dos produtos aqui...", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-if uploaded_files:
-    # Criar um buffer para armazenar o arquivo ZIP na memória
-    zip_buffer = io.BytesIO()
+if arquivo_upload is not None:
+    imagem = Image.open(arquivo_upload)
     
-    # Criar o arquivo ZIP
-    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Original")
+        st.image(imagem, use_column_width=True)
+    
+    with st.spinner("Processando com IA Nexamente..."):
+        # Processamento da imagem
+        img_array = io.BytesIO()
+        imagem.save(img_array, format='PNG')
+        resultado_bytes = remove(img_array.getvalue())
+        imagem_final = Image.open(io.BytesIO(resultado_bytes))
         
-        st.write(f"Processando {len(uploaded_files)} imagens...")
-        barra_progresso = st.progress(0)
+    with col2:
+        st.subheader("Resultado")
+        st.image(imagem_final, use_column_width=True)
         
-        for i, file in enumerate(uploaded_files):
-            # Processamento de cada imagem
-            input_image = file.read()
-            output_image = remove(input_image)
-            
-            # Definir nome do arquivo dentro do ZIP
-            nome_limpo = f"{os.path.splitext(file.name)[0]}_sem_fundo.png"
-            
-            # Adicionar a imagem processada ao ZIP
-            zip_file.writestr(nome_limpo, output_image)
-            
-            # Atualizar barra de progresso
-            progresso = (i + 1) / len(uploaded_files)
-            barra_progresso.progress(progresso)
-
-    st.success("✅ Todas as imagens foram processadas!")
-
-    # Botão de download do ZIP completo
-    st.download_button(
-        label="🚀 Baixar todas as imagens (ZIP)",
-        data=zip_buffer.getvalue(),
-        file_name="produtos_limpos.zip",
-        mime="application/zip"
-    )
+        # Botão de Download
+        buf = io.BytesIO()
+        imagem_final.save(buf, format="PNG")
+        st.download_button(
+            label="Baixar Imagem Sem Fundo",
+            data=buf.getvalue(),
+            file_name="nexamente_resultado.png",
+            mime="image/png"
+        )
