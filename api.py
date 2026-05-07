@@ -38,6 +38,6 @@ async def hotmart_webhook(request: Request):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 if __name__ == "__main__":
-    # O Railway define a porta automaticamente pela variável de ambiente
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # Ele tenta pegar a porta do Railway; se não achar, usa a 5000 como reserva
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
