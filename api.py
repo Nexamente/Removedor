@@ -37,7 +37,11 @@ async def hotmart_webhook(request: Request):
         print(f"Erro no Webhook: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
+import uvicorn
+import os
+
 if __name__ == "__main__":
-    # Ele tenta pegar a porta do Railway; se não achar, usa a 5000 como reserva
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    # O comando correto para iniciar o FastAPI programaticamente
+    uvicorn.run(app, host="0.0.0.0", port=port)
